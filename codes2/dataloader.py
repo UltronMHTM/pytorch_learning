@@ -9,10 +9,10 @@ class CardiacSet(Dataset):
         img_path = os.path.join(root_dir, "cardiac/image/train/A2C")
         mask_path = os.path.join(root_dir, "cardiac/label/train/A2C")
         img_names = os.listdir(img_path)
-        self.imgs = []
+        self.images = []
         self.masks = []
         for name in img_names:
-            self.imgs.append(io.imread(os.path.join(img_path, name)))
+            self.images.append(io.imread(os.path.join(img_path, name)))
             self.masks.append(io.imread(os.path.join(mask_path, name)))
 
     def __len__(self):
@@ -20,7 +20,7 @@ class CardiacSet(Dataset):
 
     def __getitem__(self, index):
         # img
-        img = self.imgs[index]
+        img = self.images[index]
         img = torch.tensor(img, dtype=torch.float32)
         h = img.shape[0]
         w = img.shape[1]

@@ -7,4 +7,4 @@ test_rate = 0.1
 
 save_path = "models"
 n_epochs = 1
-batch_size = 1
+batch_size = 2

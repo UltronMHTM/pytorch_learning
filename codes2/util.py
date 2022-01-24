@@ -37,7 +37,8 @@ def binarization(mask_batches):
     mask_batches[mask_batches > threshold] = 1
     return mask_batches
 
-def visulization(img, predict_masks, true_masks, ax):
+# [C, H, W]
+def visulization(img, predict_masks, true_masks):
     _, ax = plt.subplots(1, figsize=figsize)
     ax.imshow(img.astype(np.uint8))
     height, width = img.shape[:2]
@@ -45,27 +46,35 @@ def visulization(img, predict_masks, true_masks, ax):
     ax.set_xlim(-10, width + 10)
     ax.axis('off')
     ax.set_title(title)
+    # loop in 3 classes
     for pred_m, true_m in zip(predict_masks, true_masks):
         # pred_m
         padded_mask = np.zeros(
             (pred_m.shape[0] + 2, pred_m.shape[1] + 2), dtype=np.uint8)
         padded_mask[1:-1, 1:-1] = pred_m
         contours = find_contours(padded_mask, 0.5)
+        max_len = 0
         for verts in contours:
             # Subtract the padding and flip (y, x) to (x, y)
-            verts = np.fliplr(verts) - 1
-            p = Polygon(verts, facecolor="none", edgecolor=color)
-            ax.add_patch(p)
+            if max_len < len(verts):
+                mask_contours = verts
+        mask_contours = np.fliplr(mask_contours) - 1
+        p = Polygon(mask_contours, facecolor="none", edgecolor=color)
+        ax.add_patch(p)
         # true_m
         padded_mask = np.zeros(
             (true_m.shape[0] + 2, true_m.shape[1] + 2), dtype=np.uint8)
         padded_mask[1:-1, 1:-1] = true_m
         contours = find_contours(padded_mask, 0.5)
+        max_len = 0
         for verts in contours:
             # Subtract the padding and flip (y, x) to (x, y)
-            verts = np.fliplr(verts) - 1
-            p = Polygon(verts, facecolor="none", edgecolor=color)
-            ax.add_patch(p)
+            if max_len < len(verts):
+                mask_contours = verts
+        mask_contours = np.fliplr(mask_contours) - 1
+        p = Polygon(mask_contours, facecolor="none", edgecolor=color)
+        ax.add_patch(p)
+    plt.show()
     return ax
 
     # ax.imshow(masked_image.astype(np.uint8))

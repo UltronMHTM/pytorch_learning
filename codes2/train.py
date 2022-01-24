@@ -85,19 +85,23 @@ def test_epoch(model, loader):
 
     return batch_time, losses, TotalError, class_error
 
-def train(root = root_dir):
+def train(root = root_dir,continu = True):
     # train, validate, test set init
-    train_set = CardiacSet(root)
-    val_set = CardiacSet(root)
+    train_val_set = CardiacSet(root)
     test_set = CardiacSet(root)
-    indices = torch.randperm(len(train_set))
-    train_indices = indices[:len(indices) - int(len(indices)*val_rate) - int(len(indices)*test_rate)]
-    valid_indices = indices[len(indices) - int(len(indices)*val_rate) - int(len(indices)*test_rate):
-                            len(indices) - int(len(indices)*test_rate)]
+    indices = torch.tensor(range(len(train_val_set)))
+    # split train and validate set with the test set
+    indices_train_val = indices[:len(indices) - int(len(indices)*test_rate)]
+    train_val_set = torch.utils.data.Subset(train_val_set, indices_train_val)
+    # shuffle the train and validate set
+    indices_train_val = torch.randperm(len(train_val_set))
+    train_indices = indices_train_val[:len(indices) - int(len(indices)*val_rate) - int(len(indices)*test_rate)]
+    valid_indices = indices_train_val[len(indices) - int(len(indices)*val_rate) - int(len(indices)*test_rate):
+                                      len(indices) - int(len(indices)*test_rate)]
     test_indices = indices[len(indices) - int(len(indices)*test_rate):]
 
-    train_set = torch.utils.data.Subset(train_set, train_indices)
-    valid_set = torch.utils.data.Subset(val_set, valid_indices)
+    train_set = torch.utils.data.Subset(train_val_set, train_indices)
+    valid_set = torch.utils.data.Subset(train_val_set, valid_indices)
     test_set = torch.utils.data.Subset(test_set, test_indices)
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
                                                pin_memory=(torch.cuda.is_available()), num_workers=0)
@@ -108,23 +112,27 @@ def train(root = root_dir):
 
     # models init
     model = U_net()
-    if os.path.exists(os.path.join(save_path, 'models.dat')):
-        path = os.path.join(root, save_path)
-        model.load_state_dict(torch.load(os.path.join(path, 'models.dat')))
+    path = os.path.join(root, save_path)
+    last_epoch = 0
+    if continu:
+        for file in os.listdir(path):
+            if last_epoch < int(file.split('_')[1]):
+                last_epoch = int(file.split('_')[1])
+        if os.path.exists(os.path.join(path, 'models_%d.dat' % last_epoch)):
+            model.load_state_dict(torch.load(os.path.join(path, 'models_%d.dat' % last_epoch)))
     if torch.cuda.is_available():
         model = model.cuda()
     optimizer = torch.optim.Adam(model.parameters(),
                 lr=0.001,
                 betas=(0.9, 0.999),
                 eps=1e-08,
-                weight_decay=0,
-                amsgrad=False)
+                weight_decay=0)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[0.25 * n_epochs, 0.5 * n_epochs, 0.75 * n_epochs],
                                                      gamma=0.2)
 
     writer = SummaryWriter(os.path.join(root,log_path))
     best_iou = 0
-    for epoch in range(n_epochs):
+    for epoch in range(last_epoch, n_epochs):
         _, train_loss, train_iou_t, train_iou_c = train_epoch(
             model=model,
             loader=train_loader,
@@ -145,9 +153,9 @@ def train(root = root_dir):
             if valid_iou_t.avg > best_iou:
                 best_iou = valid_iou_t.avg
                 print('New best error: %.4f' % best_iou)
-                torch.save(model.state_dict(), os.path.join(save_path, 'models.dat'))
+                torch.save(model.state_dict(), os.path.join(path, 'models_%d.dat' % epoch))
         else:
-            torch.save(model.state_dict(), os.path.join(save_path, 'models.dat'))
+            torch.save(model.state_dict(), os.path.join(path, 'models_%d.dat' % epoch))
 
         # Log results
         writer.add_scalar('train_loss', train_loss.avg, epoch)

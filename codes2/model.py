@@ -23,19 +23,22 @@ class DownBlock(nn.Module):
         self.features.add_module('conv1',conv1)
         conv2 = U_conv(in_features*2, in_features*2)
         self.features.add_module('conv2',conv2)
-
+        bn = nn.BatchNorm2d(num_features=in_features*2)
+        self.features.add_module('bn',bn)
     def forward(self, input_features):
         return self.features(input_features)
 
 class UpBlock(nn.Module):
     def __init__(self, in_features):
         super(UpBlock, self).__init__()
+        self.up_sample = nn.UpsamplingBilinear2d(scale_factor=2)
         self.conv0 = nn.Conv2d(in_channels=in_features,out_channels=int(in_features/2),
                                           kernel_size=1, stride=1)
+        self.drop_out = nn.Dropout2d(p=0.5)
         self.conv1 = U_conv(in_features, int(in_features/2))
         self.conv2 = U_conv(int(in_features/2), int(in_features/2))
-        self.up_sample = nn.UpsamplingBilinear2d(scale_factor=2)
-        self.drop_out = nn.Dropout2d(p=0.5)
+        self.bn = nn.BatchNorm2d(num_features=int(in_features/2))
+
 
     def forward(self, copy_features, up_features):
         up_features = self.up_sample(up_features)
@@ -48,7 +51,7 @@ class UpBlock(nn.Module):
         output = self.drop_out(concate_features)
         output = self.conv1(output)
         output = self.conv2(output)
-
+        output = self.bn(output)
         return output
 
 class U_net(nn.Module):
@@ -71,6 +74,7 @@ class U_net(nn.Module):
         # output
         self.output_conv = nn.Conv2d(in_channels=in_features,out_channels=class_num,
                                           kernel_size=1, stride=1)
+        self.softmax = nn.Softmax2d()
     def forward(self, input_images):
         input_h = input_images.shape[-1]
         input_w = input_images.shape[-2]
@@ -85,5 +89,6 @@ class U_net(nn.Module):
         up_features3 = self.up_block3(down_features0, up_features2)
         output = self.output_conv(up_features3)
         final_upsample = nn.UpsamplingBilinear2d(size=(input_h, input_w))
-        res_map = final_upsample(output)
+        upsample_map = final_upsample(output)
+        res_map = torch.log(self.softmax(upsample_map))
         return res_map

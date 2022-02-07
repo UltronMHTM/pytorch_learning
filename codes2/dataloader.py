@@ -1,9 +1,9 @@
 from torch.utils.data import Dataset
 from skimage import io
 import os
-from config import *
 import torch
-
+from config import *
+import numpy as np
 #   one image contain only one class, class num are 3
 class CardiacSet(Dataset):
     def __init__(self, root_dir):
@@ -45,21 +45,46 @@ class CardiacSet_update(Dataset):
         self.images = []
         self.masks = []
         for name in img_names:
-            self.images.append(io.imread(os.path.join(img_path, name)))
-            self.masks.append(io.imread(os.path.join(mask_path, name)))
-
+            # img
+            img = torch.tensor(io.imread(os.path.join(img_path, name)), dtype=torch.float32)
+            h = img.shape[0]
+            w = img.shape[1]
+            img = torch.reshape(img, (1,h,w))
+            img = torch.reshape(img, (1,h,w))
+            # mask
+            mask = io.imread(os.path.join(mask_path, name)).astype(np.int16)
+            mask = torch.LongTensor(mask)
+            count = mask.flatten().bincount()
+            labels = torch.nonzero(count)
+            if len(labels) != class_num:
+                # self.images.append(self.images[-1])
+                # self.masks.append(self.masks[-1])
+                continue
+            for i in range(len(labels)):
+                mask[mask==labels[i]] = i
+                
+            self.images.append(img)
+            self.masks.append(mask)
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, index):
-        # img
         img = self.images[index]
-        img = torch.tensor(img, dtype=torch.float32)
-        h = img.shape[0]
-        w = img.shape[1]
-        img = torch.reshape(img, (1,h,w))
-        # mask
         mask = self.masks[index]
-        mask = torch.tensor(mask)
         sample = [img, mask]
         return sample
+
+        
+        # img = torch.tensor(img, dtype=torch.float32)
+        # h = img.shape[0]
+        # w = img.shape[1]
+        # img = torch.reshape(img, (1,h,w))
+        # # mask
+        # mask = self.masks[index].astype(np.int16)
+        # mask = torch.LongTensor(mask)
+        # count = mask.flatten().bincount()
+        # labels = torch.nonzero(count)
+        # for i in range(len(labels)):
+        #     mask[mask==labels[i]] = i
+        # # sample = [img, mask]
+        # # return sample
